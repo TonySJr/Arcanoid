@@ -29,9 +29,9 @@ static const unsigned char PROGMEM ball[] =
 uint8_t rocketw = 16;
 uint8_t rocketh = 2;
 
-volatile uint8_t x = LCDWIDTH/2;
-volatile int8_t x0 = -1;
-volatile uint8_t y = LCDHEIGHT/2;
+volatile int8_t x = LCDWIDTH/2;
+volatile int8_t x0 = 1;
+volatile int8_t y = LCDHEIGHT/2; 
 volatile int8_t y0 = -1;
 volatile int potValue = 0; //значение с потенциометра
 uint32_t globalcounter = 0;
@@ -126,21 +126,21 @@ void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
   uint8_t bottom = display.getPixel(x+2,y+5);
   if(right == BLACK) //right
   {
-    x0 = -1;
+    x0 = -x0;
     if(x != width-1)
       display.fillCircle(x+5,y+2,boomR,WHITE);
       //display.drawPixel(x+5,y+2,WHITE);
   }
   else if (left == BLACK) //left
   {
-    x0 = 1;
+    x0 = -x0;
     if(x != 1)
       display.fillCircle(x-1,y+2,boomR,WHITE);
       //display.drawPixel(x-1,y+2,WHITE);
   }
   else if (bottom == BLACK) //bottom
   {
-    y0 = -1;
+    y0 = -y0;
     //display.drawPixel(x+2,y+5,WHITE); 
     if(y == height-6)
     {
@@ -152,7 +152,7 @@ void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
   }
   else if (top == BLACK) //top
   {
-    y0 = 1;
+    y0 = -y0;
     if(y != 1)
       display.fillCircle(x+2,y-1,boomR,WHITE);
       //display.drawPixel(x+2,y-1,WHITE);    
