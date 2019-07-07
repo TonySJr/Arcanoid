@@ -25,8 +25,8 @@ static const unsigned char PROGMEM ball[] =
 };
 #define ballw 5
 #define ballh 5
-#define boomR 3
-uint8_t rocketw = 16;
+#define boomR 2
+uint8_t rocketw = 15;
 uint8_t rocketh = 2;
 
 volatile int8_t x = LCDWIDTH/2;
@@ -40,6 +40,10 @@ bool endflag = false;
 uint8_t width = 83; //ширина дисплея
 uint8_t height = 47; //высота дисплея
 String title = "GAMEOVER";
+//-----decition-------------
+int8_t xarr[]={0,-1,-2,-1,0,1,2,1}; //x coordinate
+int8_t yarr[]={-2,-1,0,1,2,1,0,-1}; //y coordinate
+uint8_t xyvector[8]; //vector bool/direction
 //---------------------------------------------------
 void drawbackground();
 void drawrocket();
@@ -112,42 +116,50 @@ void ADC_init()
   ADCSRA |= (1 << ADEN);  // Включаем АЦП
   ADCSRA |= (1 << ADSC);  // Запускаем преобразование
 }
-// ISR(ADC_vect)
-// {
-//   potValue = ADCH;  // ADLAR=1, Получаем 8-битный результат, остальными битами пренебрегаем
-//   potValue = map(potValue,0,252,width-rocketw,1); 
-// }
-//------------------------------------------------
+
 void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
 {
-  uint8_t top = display.getPixel(x+2,y-1);
-  uint8_t left = display.getPixel(x-1,y+2);
-  uint8_t right = display.getPixel(x+5,y+2);
-  uint8_t bottom = display.getPixel(x+2,y+5);
-  if(right == BLACK || left == BLACK) //right or left
+  int8_t xoffset = x + 2;
+  int8_t yoffset = y + 2;
+  for(uint8_t i = 0; i < 8; i++)
   {
-    x0 = -x0;
-    if(right == BLACK && x != width-1)
-      display.fillCircle(x+5,y+2,boomR,WHITE);
-      //display.drawPixel(x+5,y+2,WHITE);
-    else if(x != 1)
-      display.fillCircle(x-1,y+2,boomR,WHITE);
-      //display.drawPixel(x-1,y+2,WHITE);
+    xyvector[i] = display.getPixel(xoffset + xarr[i],yoffset + yarr[i]);
   }
-  else if (bottom == BLACK || top == BLACK) //bottom or top
+  //not need to second for
+  for(uint8_t i = 0; i < 8; i++)
   {
-    y0 = -y0;
-    //display.drawPixel(x+2,y+5,WHITE); 
-    if(y == height-6)
+    if(xyvector[i] == BLACK)
     {
-      x0 = random(-1,2);
-      framerate = random(20,51);
+      if(i == 0 || i == 4) // bottom or top
+      {
+        y0 = -y0;
+        if(y == height - 5) //bottom\rocket
+        {
+          int8_t xrocket = xoffset - potValue;
+          x0 = map(xrocket,0,rocketw,1,-2);
+          framerate = random(20,51);
+        }
+        else if(y != 1) //top
+          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+        else //bottom
+          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+      }
+      else if(i == 2 || i == 6) // left or right
+      {
+        x0 = -x0;
+        if(i == 6 && x != width-1)
+          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+        else if(x != 1)
+          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+      }
+      else if(i == 1 || i == 3 || i == 5 || i == 7)
+      {
+        x0 = -x0;
+        y0 = -y0;
+        display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+      }
+      break;
     }
-    else if(y != 1)
-      display.fillCircle(x+2,y-1,boomR,WHITE);
-      //display.drawPixel(x+2,y-1,WHITE);    
-    else
-      display.fillCircle(x+2,y+5,boomR,WHITE);
   }
   display.drawBitmap(x, y, bitmap, w, h, BLACK);
 }
