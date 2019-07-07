@@ -124,21 +124,17 @@ void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
   uint8_t left = display.getPixel(x-1,y+2);
   uint8_t right = display.getPixel(x+5,y+2);
   uint8_t bottom = display.getPixel(x+2,y+5);
-  if(right == BLACK) //right
+  if(right == BLACK || left == BLACK) //right or left
   {
     x0 = -x0;
-    if(x != width-1)
+    if(right == BLACK && x != width-1)
       display.fillCircle(x+5,y+2,boomR,WHITE);
       //display.drawPixel(x+5,y+2,WHITE);
-  }
-  else if (left == BLACK) //left
-  {
-    x0 = -x0;
-    if(x != 1)
+    else if(x != 1)
       display.fillCircle(x-1,y+2,boomR,WHITE);
       //display.drawPixel(x-1,y+2,WHITE);
   }
-  else if (bottom == BLACK) //bottom
+  else if (bottom == BLACK || top == BLACK) //bottom or top
   {
     y0 = -y0;
     //display.drawPixel(x+2,y+5,WHITE); 
@@ -147,15 +143,11 @@ void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
       x0 = random(-1,2);
       framerate = random(20,51);
     }
-    else
-      display.fillCircle(x+2,y+5,boomR,WHITE);
-  }
-  else if (top == BLACK) //top
-  {
-    y0 = -y0;
-    if(y != 1)
+    else if(y != 1)
       display.fillCircle(x+2,y-1,boomR,WHITE);
       //display.drawPixel(x+2,y-1,WHITE);    
+    else
+      display.fillCircle(x+2,y+5,boomR,WHITE);
   }
   display.drawBitmap(x, y, bitmap, w, h, BLACK);
 }
