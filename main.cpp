@@ -29,10 +29,10 @@ static const unsigned char PROGMEM ball[] =
 uint8_t rocketw = 15;
 uint8_t rocketh = 2;
 
-volatile int8_t x = LCDWIDTH/2;
-volatile int8_t x0 = 1;
-volatile int8_t y = LCDHEIGHT/2; 
-volatile int8_t y0 = -1;
+volatile float x = LCDWIDTH/2;
+volatile float x0 = 1;
+volatile float y = LCDHEIGHT/2+10; 
+volatile float y0 = -1;
 volatile int potValue = 0; //значение с потенциометра
 uint32_t globalcounter = 0;
 uint16_t framerate = 50;
@@ -85,7 +85,7 @@ void loop()
     //   framerate--;
     if(y>height) //endgame
     {
-      y = 10;
+      y = 20;
       rocketw--;
       if(rocketw < 2)
         endflag = true;
@@ -121,11 +121,70 @@ void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
 {
   int8_t xoffset = x + 2;
   int8_t yoffset = y + 2;
+  uint8_t counter = 0;
   for(uint8_t i = 0; i < 8; i++)
   {
     xyvector[i] = display.getPixel(xoffset + xarr[i],yoffset + yarr[i]);
+    if(xyvector[i] == BLACK)
+      counter++;
   }
+  if(counter == 1)
+  {
+    for(uint8_t i = 0; i < 8; i++)
+    {
+      if(xyvector[i] == BLACK)
+      {
+        if(i == 0 || i == 4) // bottom or top
+        {
+          y0 = -y0;
+          if(y == height - 5) //bottom\rocket
+          {
+            int8_t xrocket = xoffset - potValue;
+            x0 = map(xrocket,0,rocketw,1,-2);
+            framerate = random(20,51);
+          }
+          else if(y != 1) //top
+            display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+          else //bottom
+            display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+        }
+        else if(i == 2 || i == 6) // left or right
+        {
+          x0 = -x0;
+          if(i == 6 && x != width-1)
+            display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+          else if(x != 1)
+            display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+        }
+        else if(i == 1 || i == 3 || i == 5 || i == 7)
+        {
+          x0 = -x0;
+          y0 = -y0;
+          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+        }
+        break;
+      }
+    }
+  }
+  else if (counter != 0)
+  {
+    for(uint8_t i = 0; i < 8; i++)
+    {
+      if(xyvector[i] == BLACK)
+      {
+        x0 += xarr[i];
+        y0 += yarr[i];
+      }
+      display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
+    }
+    x0 = (x0 / counter);
+    x0 = -map(x0,-2,2,-1,1);
+    y0 = (y0 / counter);
+    y0 = -map(y0,-2,2,-1,1);
+  }
+
   //not need to second for
+  /*
   for(uint8_t i = 0; i < 8; i++)
   {
     if(xyvector[i] == BLACK)
@@ -161,6 +220,7 @@ void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
       break;
     }
   }
+  */
   display.drawBitmap(x, y, bitmap, w, h, BLACK);
 }
 
