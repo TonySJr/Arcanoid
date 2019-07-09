@@ -13,27 +13,17 @@ Adafruit_PCD8544 display = Adafruit_PCD8544(5, 4, 3);
 // Note with hardware SPI MISO and SS pins aren't used but will still be read
 // and written to during SPI transfer.  Be careful sharing these pins!
 
-//#define framerate 200
-
-static const unsigned char PROGMEM ball[] =
-{ 
-  B01110000,
-  B11011000,
-  B10001000,
-  B11011000,
-  B01110000
-};
-#define ballw 5
-#define ballh 5
 #define boomR 2
 uint8_t rocketw = 15;
 uint8_t rocketh = 2;
 
-volatile float x = LCDWIDTH/2;
-volatile float x0 = 1;
-volatile float y = LCDHEIGHT/2+10; 
-volatile float y0 = -1;
-volatile int potValue = 0; //значение с потенциометра
+volatile int8_t x = LCDWIDTH/2;
+volatile int8_t x0 = 1;
+volatile int8_t y = LCDHEIGHT/2+10; 
+volatile int8_t y0 = -1;
+volatile uint8_t potValue = 0; //значение с потенциометра
+int8_t xoffset = 0;
+int8_t yoffset = 0;
 uint32_t globalcounter = 0;
 uint16_t framerate = 50;
 bool endflag = false;
@@ -41,17 +31,16 @@ uint8_t width = 83; //ширина дисплея
 uint8_t height = 47; //высота дисплея
 String title = "GAMEOVER";
 //-----decition-------------
-int8_t xarr[]={0,-1,-2,-1,0,1,2,1}; //x coordinate
-int8_t yarr[]={-2,-1,0,1,2,1,0,-1}; //y coordinate
-uint8_t xyvector[8]; //vector bool/direction
+int8_t xarr[]={ 0,-1,-2,-2,-2,-1,0,1,2,2, 2,-1}; //x coordinate
+int8_t yarr[]={-2,-2,-1, 0, 1, 2,2,2,1,0,-1,-2}; //y coordinate
+uint8_t xyvector[12]; //vector bool/direction
 //---------------------------------------------------
 void drawbackground();
 void drawrocket();
-void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h);
-void clearent(const uint8_t *bitmap1, uint8_t w1, uint8_t h1);
+void drawball();
+void clearent();
 void wintest();
 void ADC_init();
-//void testdrawbitmap(const uint8_t *bitmap, uint8_t w, uint8_t h);
 //=====================================================
 void setup()   
 {
@@ -74,10 +63,10 @@ void loop()
   {
     drawbackground();
     drawrocket();
-    drawball(ball, ballw, ballh);
+    drawball();
     display.display();
     delay(framerate);
-    clearent(ball, ballw, ballh);
+    clearent();
     x += x0;
     y += y0;
     // globalcounter++;
@@ -117,123 +106,78 @@ void ADC_init()
   ADCSRA |= (1 << ADSC);  // Запускаем преобразование
 }
 
-void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
+void drawball()
 {
-  int8_t xoffset = x + 2;
-  int8_t yoffset = y + 2;
-  uint8_t counter = 0;
-  for(uint8_t i = 0; i < 8; i++)
+  xoffset = x + 2;
+  yoffset = y + 2;
+  for(uint8_t i = 0; i < 12; i++)
   {
     xyvector[i] = display.getPixel(xoffset + xarr[i],yoffset + yarr[i]);
-    if(xyvector[i] == BLACK)
-      counter++;
   }
-  if(counter == 1)
+  if(xyvector[1] == BLACK && xyvector[2] == BLACK)  //top left corner
   {
-    for(uint8_t i = 0; i < 8; i++)
-    {
-      if(xyvector[i] == BLACK)
-      {
-        if(i == 0 || i == 4) // bottom or top
-        {
-          y0 = -y0;
-          if(y == height - 5) //bottom\rocket
-          {
-            int8_t xrocket = xoffset - potValue;
-            x0 = map(xrocket,0,rocketw,1,-2);
-            framerate = random(20,51);
-          }
-          else if(y != 1) //top
-            display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-          else //bottom
-            display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-        }
-        else if(i == 2 || i == 6) // left or right
-        {
-          x0 = -x0;
-          if(i == 6 && x != width-1)
-            display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-          else if(x != 1)
-            display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-        }
-        else if(i == 1 || i == 3 || i == 5 || i == 7)
-        {
-          x0 = -x0;
-          y0 = -y0;
-          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-        }
-        break;
-      }
-    }
+    x0=-x0;
+    y0=-y0;
+    display.fillCircle(xoffset - 1,yoffset - 1,boomR,WHITE);
   }
-  else if (counter != 0)
+  else if(xyvector[7] == BLACK && xyvector[8] == BLACK) //bottom right corner
   {
-    for(uint8_t i = 0; i < 8; i++)
-    {
-      if(xyvector[i] == BLACK)
-      {
-        x0 += xarr[i];
-        y0 += yarr[i];
-      }
-      display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-    }
-    x0 = (x0 / counter);
-    x0 = -map(x0,-2,2,-1,1);
-    y0 = (y0 / counter);
-    y0 = -map(y0,-2,2,-1,1);
+    x0=-x0;
+    y0=-y0;
+    display.fillCircle(xoffset + 1,yoffset + 1,boomR,WHITE);
   }
-
-  //not need to second for
-  /*
-  for(uint8_t i = 0; i < 8; i++)
+  else if(xyvector[4] == BLACK && xyvector[5] == BLACK) //bottom left corner
   {
-    if(xyvector[i] == BLACK)
-    {
-      if(i == 0 || i == 4) // bottom or top
-      {
-        y0 = -y0;
-        if(y == height - 5) //bottom\rocket
-        {
-          int8_t xrocket = xoffset - potValue;
-          x0 = map(xrocket,0,rocketw,1,-2);
-          framerate = random(20,51);
-        }
-        else if(y != 1) //top
-          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-        else //bottom
-          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-      }
-      else if(i == 2 || i == 6) // left or right
-      {
-        x0 = -x0;
-        if(i == 6 && x != width-1)
-          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-        else if(x != 1)
-          display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-      }
-      else if(i == 1 || i == 3 || i == 5 || i == 7)
-      {
-        x0 = -x0;
-        y0 = -y0;
-        display.fillCircle(xoffset + xarr[i],yoffset + yarr[i],boomR,WHITE);
-      }
-      break;
-    }
+    x0=-x0;
+    y0=-y0;
+    display.fillCircle(xoffset - 1,yoffset + 1,boomR,WHITE);
   }
-  */
-  display.drawBitmap(x, y, bitmap, w, h, BLACK);
+  else if(xyvector[10] == BLACK && xyvector[11] == BLACK) //top right corner
+  {
+    x0=-x0;
+    y0=-y0;
+    display.fillCircle(xoffset + 1,yoffset - 1,boomR,WHITE);
+  }
+  else if(xyvector[11] == BLACK || xyvector[0] == BLACK || xyvector[1] == BLACK) //top
+  {
+    y0 = -y0;
+    if(y != 1) //top
+      display.fillCircle(xoffset + xarr[0],yoffset + yarr[0],boomR,WHITE);
+  }
+  else if(xyvector[5] == BLACK || xyvector[6] == BLACK || xyvector[7] == BLACK) // bottom
+  {
+    y0 = -y0;
+    if(y == height - 5) //bottom\rocket
+    {
+      int8_t xrocket = xoffset - potValue;
+      x0 = map(xrocket,0,rocketw,1,-2);
+      framerate = random(20,51);
+    }
+    else 
+      display.fillCircle(xoffset + xarr[6],yoffset + yarr[6],boomR,WHITE);
+  }
+  else if(xyvector[2] == BLACK || xyvector[3] == BLACK || xyvector[4] == BLACK ||
+   xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) // left or right
+  {
+    x0 = -x0;
+    if((xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) && x != width-1)
+      display.fillCircle(xoffset + xarr[9],yoffset + yarr[9],boomR,WHITE);
+    else if(x != 1)
+      display.fillCircle(xoffset + xarr[3],yoffset + yarr[3],boomR,WHITE);
+  }
+  display.drawCircle(xoffset, yoffset, 2, BLACK);
 }
 
 void drawrocket()
 {
   //potValue = ADCH;  // ADLAR=1, Получаем 8-битный результат, остальными битами пренебрегаем
-  potValue = map(ADCH,0,255,width-rocketw,0); 
-  display.drawRect(potValue,height-1,rocketw,rocketh,BLACK);
+  potValue = map(ADCH,0,255,width - rocketw,0); 
+  display.drawRect(potValue,height - 1,rocketw,rocketh,BLACK);
 }
 
-void clearent(const uint8_t *bitmap1, uint8_t w1, uint8_t h1)
+void clearent()
 {
-  display.drawBitmap(x, y, bitmap1, w1, h1, WHITE);
+  display.drawCircle(xoffset, yoffset, 2, WHITE); //ball
   display.drawRect(potValue,height-1,rocketw,rocketh,WHITE);
 }
 
