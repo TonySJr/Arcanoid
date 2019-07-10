@@ -13,41 +13,34 @@ Adafruit_PCD8544 display = Adafruit_PCD8544(5, 4, 3);
 // Note with hardware SPI MISO and SS pins aren't used but will still be read
 // and written to during SPI transfer.  Be careful sharing these pins!
 
-//#define framerate 200
-
-static const unsigned char PROGMEM ball[] =
-{ 
-  B01110000,
-  B11011000,
-  B10001000,
-  B11011000,
-  B01110000
-};
-#define ballw 5
-#define ballh 5
-#define boomR 3
-uint8_t rocketw = 16;
+volatile uint8_t boomR = 2;
+uint8_t rocketw = 19;
 uint8_t rocketh = 2;
 
-volatile int8_t x = LCDWIDTH/2;
+volatile uint8_t x = LCDWIDTH/2;
 volatile int8_t x0 = 1;
-volatile int8_t y = LCDHEIGHT/2; 
+volatile uint8_t y = LCDHEIGHT/2+10; 
 volatile int8_t y0 = -1;
-volatile int potValue = 0; //значение с потенциометра
+volatile uint8_t potValue = 0; //значение с потенциометра
 uint32_t globalcounter = 0;
 uint16_t framerate = 50;
 bool endflag = false;
+bool levelflag = false;
 uint8_t width = 83; //ширина дисплея
 uint8_t height = 47; //высота дисплея
 String title = "GAMEOVER";
+//-----decition-------------
+int8_t xarr[]={ 0,-1,-2,-2,-2,-1,0,1,2,2, 2,-1}; //x coordinate
+int8_t yarr[]={-2,-2,-1, 0, 1, 2,2,2,1,0,-1,-2}; //y coordinate
+uint8_t xyvector[12]; //vector bool/direction
 //---------------------------------------------------
 void drawbackground();
 void drawrocket();
-void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h);
-void clearent(const uint8_t *bitmap1, uint8_t w1, uint8_t h1);
+void drawball();
+void clearent();
 void wintest();
 void ADC_init();
-//void testdrawbitmap(const uint8_t *bitmap, uint8_t w, uint8_t h);
+void leveldots(uint8_t i);
 //=====================================================
 void setup()   
 {
@@ -55,47 +48,76 @@ void setup()
   display.clearDisplay();
   randomSeed(analogRead(A0));
   ADC_init();
-  // for(uint8_t i = 0; i<5;i++) //prepyatstvia
-  // {
-  //   uint8_t xr = random(width);
-  //   uint8_t yr = random(height);
-  //   display.writeFillRect(xr,yr,5,5,BLACK);
-  // }
-  display.writeFillRect(5,5,width -10,10,BLACK);
+  display.setTextSize(1);
+  display.setTextColor(BLACK);
+  potValue = map(ADCH,0,255,width - rocketw,0); 
 }
 
 void loop() 
 {
-  if(endflag == false)
+  for(uint8_t i = 1; i < 11; i++)
   {
-    drawbackground();
-    drawrocket();
-    drawball(ball, ballw, ballh);
-    display.display();
-    delay(framerate);
-    clearent(ball, ballw, ballh);
-    x += x0;
-    y += y0;
-    // globalcounter++;
-    // if(globalcounter%50 == 0 && framerate > 20)
-    //   framerate--;
-    if(y>height) //endgame
-    {
-      y = 10;
-      rocketw--;
-      if(rocketw < 2)
-        endflag = true;
-    }
-    wintest();
-  }else{
     display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(BLACK);
     display.setCursor(20,20);
-    display.println(title);
+    display.print("Level ");display.println(i);
     display.display();
-    delay(50000);
+    delay(2000);
+    display.clearDisplay();
+    x = potValue;
+    x0 = 0;
+    y = LCDHEIGHT/2+10; 
+    y0 = -1;
+    //prepyatstvia
+    leveldots(i);
+    //-----------
+    levelflag = false;
+    while(levelflag == false)
+    {
+      if(endflag == false)
+      {
+        drawbackground();
+        drawrocket();
+        drawball();
+        display.display();
+        delay(framerate);
+        clearent();
+        x += x0;
+        y += y0;
+        if(y > height || x > width) // - life
+        {
+          y = 20;
+          x = potValue;
+          y0 = -1;
+          rocketw--;
+          if(rocketw < 2)
+            endflag = true;
+        }
+        wintest();
+      }else{
+        display.clearDisplay();
+        display.setCursor(20,20);
+        display.println(title);
+        display.display();
+        delay(50000);
+      }
+    }
+    //level completed
+    display.clearDisplay();
+    display.setCursor(20,20);
+    display.print("Level ");display.println(i);
+    display.setCursor(20,30);
+    display.println("Completed");
+    display.display();
+    delay(1000);
+    endflag = false;
+    levelflag = true;
   }
+  //win
+  display.clearDisplay();
+  display.setCursor(20,20);
+  display.println("You WIN!");
+  display.display();
+  delay(50000);
 }
 
 void ADC_init()
@@ -112,64 +134,77 @@ void ADC_init()
   ADCSRA |= (1 << ADEN);  // Включаем АЦП
   ADCSRA |= (1 << ADSC);  // Запускаем преобразование
 }
-// ISR(ADC_vect)
-// {
-//   potValue = ADCH;  // ADLAR=1, Получаем 8-битный результат, остальными битами пренебрегаем
-//   potValue = map(potValue,0,252,width-rocketw,1); 
-// }
-//------------------------------------------------
-void drawball(const uint8_t *bitmap, uint8_t w, uint8_t h)
+
+void drawball()
 {
-  uint8_t top = display.getPixel(x+2,y-1);
-  uint8_t left = display.getPixel(x-1,y+2);
-  uint8_t right = display.getPixel(x+5,y+2);
-  uint8_t bottom = display.getPixel(x+2,y+5);
-  if(right == BLACK) //right
+  for(uint8_t i = 0; i < 12; i++)
+  {
+    xyvector[i] = display.getPixel(x + xarr[i],y + yarr[i]);
+  }
+  if(xyvector[1] == BLACK && xyvector[2] == BLACK)  //top left corner
   {
     x0 = -x0;
-    if(x != width-1)
-      display.fillCircle(x+5,y+2,boomR,WHITE);
-      //display.drawPixel(x+5,y+2,WHITE);
+    y0 = -y0;
+    display.fillCircle(x - 1,y - 1,boomR,WHITE);
   }
-  else if (left == BLACK) //left
+  else if(xyvector[7] == BLACK && xyvector[8] == BLACK) //bottom right corner
   {
     x0 = -x0;
-    if(x != 1)
-      display.fillCircle(x-1,y+2,boomR,WHITE);
-      //display.drawPixel(x-1,y+2,WHITE);
+    y0 = -y0;
+    display.fillCircle(x + 1,y + 1,boomR,WHITE);
   }
-  else if (bottom == BLACK) //bottom
+  else if(xyvector[4] == BLACK && xyvector[5] == BLACK) //bottom left corner
+  {
+    x0 = -x0;
+    y0 = -y0;
+    display.fillCircle(x - 1,y + 1,boomR,WHITE);
+  }
+  else if(xyvector[10] == BLACK && xyvector[11] == BLACK) //top right corner
+  {
+    x0 = -x0;
+    y0 = -y0;
+    display.fillCircle(x + 1,y - 1,boomR,WHITE);
+  }
+  else if(xyvector[11] == BLACK || xyvector[0] == BLACK || xyvector[1] == BLACK) //top
   {
     y0 = -y0;
-    //display.drawPixel(x+2,y+5,WHITE); 
-    if(y == height-6)
+    if(y > 2) //top
+      display.fillCircle(x + xarr[0],y + yarr[0],boomR,WHITE);
+  }
+  else if(xyvector[5] == BLACK || xyvector[6] == BLACK || xyvector[7] == BLACK) // bottom
+  {
+    y0 = -y0;
+    if(y == height - 3) //bottom\rocket
     {
-      x0 = random(-1,2);
-      framerate = random(20,51);
+      int8_t xrocket = x - potValue;
+      x0 = map(xrocket,0,rocketw,1,-2);
+      //framerate = random(20,51);
     }
-    else
-      display.fillCircle(x+2,y+5,boomR,WHITE);
+    else 
+      display.fillCircle(x + xarr[6],y + yarr[6],boomR,WHITE);
   }
-  else if (top == BLACK) //top
+  else if(xyvector[2] == BLACK || xyvector[3] == BLACK || xyvector[4] == BLACK ||
+   xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) // left or right
   {
-    y0 = -y0;
-    if(y != 1)
-      display.fillCircle(x+2,y-1,boomR,WHITE);
-      //display.drawPixel(x+2,y-1,WHITE);    
+    x0 = -x0;
+    if((xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) && x != width-1)
+      display.fillCircle(x + xarr[9],y + yarr[9],boomR,WHITE);
+    else if(x > 2)
+      display.fillCircle(x + xarr[3],y + yarr[3],boomR,WHITE);
   }
-  display.drawBitmap(x, y, bitmap, w, h, BLACK);
+  display.drawCircle(x, y, 2, BLACK);
 }
 
 void drawrocket()
 {
   //potValue = ADCH;  // ADLAR=1, Получаем 8-битный результат, остальными битами пренебрегаем
-  potValue = map(ADCH,0,255,width-rocketw,0); 
-  display.drawRect(potValue,height-1,rocketw,rocketh,BLACK);
+  potValue = map(ADCH,0,255,width - rocketw,0); 
+  display.drawRect(potValue,height - 1,rocketw,rocketh,BLACK);
 }
 
-void clearent(const uint8_t *bitmap1, uint8_t w1, uint8_t h1)
+void clearent()
 {
-  display.drawBitmap(x, y, bitmap1, w1, h1, WHITE);
+  display.fillCircle(x, y, 2, WHITE); //ball
   display.drawRect(potValue,height-1,rocketw,rocketh,WHITE);
 }
 
@@ -184,55 +219,83 @@ void wintest()
   uint16_t summ = 0;
   for(uint8_t i = 5; i < width - 5; i++)
   {
-    for(uint8_t j = 5; j < 10; j++)
+    for(uint8_t j = 5; j <= 30; j++)
     {
       summ += display.getPixel(i,j);
     }
   }
   if(summ == 0)
+    levelflag = true;
+}
+void leveldots(uint8_t i)
+{
+  switch (i)
   {
-    endflag = true;
-    title = "YOU WIN!";
+    case 1:
+      display.writeFillRect(5,5,width - 10,10,BLACK);
+      boomR = 5;
+      break;
+    case 2:
+      for(uint8_t i = 0; i < 7; i++) //prepyatstvia
+      {
+        uint8_t xr = random(5,width - 10);
+        uint8_t yr = random(5,25);
+        display.writeFillRect(xr,yr,5,5,BLACK);
+      }
+      framerate = 45;
+      break;
+    case 3:
+      display.fillTriangle(width/2,25,5,5,width-10,5,BLACK);
+      boomR = 4;
+      framerate = 40;
+      break;
+    case 4:
+      for(uint8_t i = 10;i < width - 10; i+=10)
+        display.drawCircle(i,10,5,BLACK);
+      framerate = 35;
+      break;
+    case 5:
+      display.fillCircle(10,10,5,BLACK);
+      display.fillCircle(width - 10,10,5,BLACK);
+      display.fillCircle(width/2,height/2,5,BLACK);
+      boomR = 3;
+      framerate = 30;
+      break;
+    case 6:
+      display.setTextSize(2);
+      display.setCursor(7,5);
+      display.println("DO IT!");
+      display.setCursor(7,20);
+      display.println("DO IT!");
+      display.setTextSize(1);
+      framerate = 40;
+      break;
+    case 7:
+      display.setCursor(5,5);
+      display.fillCircle(width/2,1,25,BLACK);
+      break;
+    case 8://lines
+      for(uint8_t i = 0; i < 10; i++) //prepyatstvia
+      {
+        uint8_t xr1 = random(5,width - 5);
+        uint8_t yr1 = random(5,height - 15);
+        uint8_t xr2 = random(5,width - 5);
+        uint8_t yr2 = random(5,height - 15);
+        display.drawLine(xr1,yr1,xr2,yr2,BLACK);
+      }
+      boomR = 2;
+      framerate = 20;
+      break;
+    case 9:
+      for(uint8_t i = 0; i < 5; i++) //prepyatstvia
+      {
+        uint8_t xr = random(10,width - 15);
+        uint8_t yr = random(10,height - 15);
+        display.fillCircle(xr,yr,5,BLACK);
+      }
+      break;
+    case 10:
+      display.drawRoundRect(5,5,width - 10,10,3,BLACK);
+      break;
   }
 }
-// void testdrawbitmap(const uint8_t *bitmap, uint8_t w, uint8_t h) {
-//   uint8_t icons[NUMFLAKES][3];
-//   randomSeed(666);     // whatever seed
- 
-//   // initialize
-//   for (uint8_t f=0; f< NUMFLAKES; f++) {
-//     icons[f][XPOS] = random(display.width());
-//     icons[f][YPOS] = 0;
-//     icons[f][DELTAY] = random(5) + 1;
-    
-//     Serial.print("x: ");
-//     Serial.print(icons[f][XPOS], DEC);
-//     Serial.print(" y: ");
-//     Serial.print(icons[f][YPOS], DEC);
-//     Serial.print(" dy: ");
-//     Serial.println(icons[f][DELTAY], DEC);
-//   }
-
-//   while (1) {
-//     // draw each icon
-//     for (uint8_t f=0; f< NUMFLAKES; f++) {
-//       display.drawBitmap(icons[f][XPOS], icons[f][YPOS], bitmap, w, h, BLACK);
-//     }
-//     display.display();
-//     delay(200);
-    
-//     // then erase it + move it
-//     for (uint8_t f=0; f< NUMFLAKES; f++) {
-//       display.drawBitmap(icons[f][XPOS], icons[f][YPOS], bitmap, w, h, WHITE);
-//       // move it
-//       icons[f][YPOS] += icons[f][DELTAY];
-//       // if its gone, reinit
-//       if (icons[f][YPOS] > display.height()) {
-//         icons[f][XPOS] = random(display.width());
-//         icons[f][YPOS] = 0;
-//         icons[f][DELTAY] = random(5) + 1;
-//       }
-//     }
-//   }
-// }
-//add something
