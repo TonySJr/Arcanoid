@@ -14,13 +14,13 @@ Adafruit_PCD8544 display = Adafruit_PCD8544(5, 4, 3);
 // and written to during SPI transfer.  Be careful sharing these pins!
 
 volatile uint8_t boomR = 2;
-uint8_t rocketw = 19;
+volatile uint8_t rocketw = 19;
 uint8_t rocketh = 2;
 
-volatile uint8_t x = LCDWIDTH/2;
-volatile int8_t x0 = 1;
-volatile uint8_t y = LCDHEIGHT/2+10; 
-volatile int8_t y0 = -1;
+volatile float x = LCDWIDTH/2;
+volatile float x0 = 1;
+volatile float y = LCDHEIGHT/2+10; 
+volatile float y0 = -1;
 volatile uint8_t potValue = 0; //значение с потенциометра
 uint32_t globalcounter = 0;
 uint16_t framerate = 50;
@@ -33,6 +33,10 @@ String title = "GAMEOVER";
 int8_t xarr[]={ 0,-1,-2,-2,-2,-1,0,1,2,2, 2,-1}; //x coordinate
 int8_t yarr[]={-2,-2,-1, 0, 1, 2,2,2,1,0,-1,-2}; //y coordinate
 uint8_t xyvector[12]; //vector bool/direction
+// float xvec[] = {-1.306562964876377,-1.0,-0.541196100146197, 0, 0.541196100146197, 1, 1.306562964876377};
+// float yvec[] = {-0.541196100146197,-1.0,-1.306562964876377,-2,-1.306562964876377,-1,-0.541196100146197};
+float xvec[] = {-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,-0.3826834323650897717284599840304,  0.0,                                0.3826834323650897717284599840304,  0.70710678118654752440084436210485, 0.92387953251128675612818318939679};
+float yvec[] = {-0.3826834323650897717284599840304, -0.70710678118654752440084436210485,-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,-0.3826834323650897717284599840304};
 //---------------------------------------------------
 void drawbackground();
 void drawrocket();
@@ -168,7 +172,7 @@ void drawball()
   else if(xyvector[11] == BLACK || xyvector[0] == BLACK || xyvector[1] == BLACK) //top
   {
     y0 = -y0;
-    if(y > 2) //top
+    if(y > 3) //top
       display.fillCircle(x + xarr[0],y + yarr[0],boomR,WHITE);
   }
   else if(xyvector[5] == BLACK || xyvector[6] == BLACK || xyvector[7] == BLACK) // bottom
@@ -176,9 +180,10 @@ void drawball()
     y0 = -y0;
     if(y == height - 3) //bottom\rocket
     {
-      int8_t xrocket = x - potValue;
-      x0 = map(xrocket,0,rocketw,1,-2);
-      //framerate = random(20,51);
+      int8_t xrocket = x - (potValue - 2);
+      xrocket = map(xrocket,0,rocketw,0,6);
+      x0 = xvec[xrocket];
+      y0 = yvec[xrocket];
     }
     else 
       display.fillCircle(x + xarr[6],y + yarr[6],boomR,WHITE);
@@ -187,9 +192,9 @@ void drawball()
    xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) // left or right
   {
     x0 = -x0;
-    if((xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) && x != width-1)
+    if((xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) && x != width-3)
       display.fillCircle(x + xarr[9],y + yarr[9],boomR,WHITE);
-    else if(x > 2)
+    else if(x > 3)
       display.fillCircle(x + xarr[3],y + yarr[3],boomR,WHITE);
   }
   display.drawCircle(x, y, 2, BLACK);
