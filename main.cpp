@@ -9,9 +9,11 @@
 // pin 5 - Data/Command select (D/C)
 // pin 4 - LCD chip select (CS)
 // pin 3 - LCD reset (RST)
-Adafruit_PCD8544 display = Adafruit_PCD8544(5, 4, 3);
+Adafruit_PCD8544 display = Adafruit_PCD8544(6, 7, 8);
 // Note with hardware SPI MISO and SS pins aren't used but will still be read
 // and written to during SPI transfer.  Be careful sharing these pins!
+
+const float gravity = 0.001;
 
 volatile uint8_t boomR = 2;
 volatile uint8_t rocketw = 19;
@@ -23,38 +25,49 @@ volatile float y = LCDHEIGHT/2+10;
 volatile float y0 = -1;
 volatile uint8_t potValue = 0; //значение с потенциометра
 uint32_t globalcounter = 0;
-uint16_t framerate = 50;
+uint16_t framerate = 30;
 bool endflag = false;
 bool levelflag = false;
 uint8_t width = 83; //ширина дисплея
 uint8_t height = 47; //высота дисплея
 String title = "GAMEOVER";
 //-----decition-------------
-int8_t xarr[]={ 0,-1,-2,-2,-2,-1,0,1,2,2, 2,-1}; //x coordinate
-int8_t yarr[]={-2,-2,-1, 0, 1, 2,2,2,1,0,-1,-2}; //y coordinate
-uint8_t xyvector[12]; //vector bool/direction
-// float xvec[] = {-1.306562964876377,-1.0,-0.541196100146197, 0, 0.541196100146197, 1, 1.306562964876377};
-// float yvec[] = {-0.541196100146197,-1.0,-1.306562964876377,-2,-1.306562964876377,-1,-0.541196100146197};
-float xvec[] = {-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,-0.3826834323650897717284599840304,  0.0,                                0.3826834323650897717284599840304,  0.70710678118654752440084436210485, 0.92387953251128675612818318939679};
-float yvec[] = {-0.3826834323650897717284599840304, -0.70710678118654752440084436210485,-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,-0.3826834323650897717284599840304};
+int8_t xarr[12]  = { 0,-1,-2,-2,-2,-1,0,1,2,2, 2,1}; //x coordinate
+int8_t yarr[12]={-2,-2,-1, 0, 1, 2,2,2,1,0,-1,-2}; //y coordinate
+//uint8_t xyvector[12]; //vector bool/direction
+float xballvec[12] = {0,-0.3826834323650897717284599840304,-0.92387953251128675612818318939679,-1,
+-0.92387953251128675612818318939679,-0.3826834323650897717284599840304,0,0.3826834323650897717284599840304,
+0.92387953251128675612818318939679,1,0.92387953251128675612818318939679,0.3826834323650897717284599840304};
+float yballvec[12] = {-1,-0.92387953251128675612818318939679,-0.3826834323650897717284599840304,0,
+0.3826834323650897717284599840304,0.92387953251128675612818318939679,1,0.92387953251128675612818318939679,
+0.3826834323650897717284599840304,0,-0.3826834323650897717284599840304,-0.92387953251128675612818318939679};
+float xrvec[12] = {-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,
+-0.3826834323650897717284599840304,  0.0, 0.3826834323650897717284599840304,  0.70710678118654752440084436210485,
+ 0.92387953251128675612818318939679};
+float yrvec[12] = {-0.3826834323650897717284599840304, -0.70710678118654752440084436210485,
+-0.92387953251128675612818318939679,  -1,-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,
+-0.3826834323650897717284599840304};
 //---------------------------------------------------
 void drawbackground();
 void drawrocket();
-void drawball();
+void physics();
 void clearent();
 void wintest();
 void ADC_init();
 void leveldots(uint8_t i);
+void collision(uint8_t i);
 //=====================================================
 void setup()   
 {
   display.begin();
   display.clearDisplay();
   randomSeed(analogRead(A0));
-  ADC_init();
+  // set a0 as input add
+  //ADC_init();
+  //potValue = map(ADCH,0,255,width - rocketw,0); 
+  potValue = 25; //AI start
   display.setTextSize(1);
   display.setTextColor(BLACK);
-  potValue = map(ADCH,0,255,width - rocketw,0); 
 }
 
 void loop() 
@@ -81,16 +94,18 @@ void loop()
       {
         drawbackground();
         drawrocket();
-        drawball();
+        physics();
+        display.drawCircle(round(x), round(y), 2, BLACK);
         display.display();
         delay(framerate);
         clearent();
         x += x0;
         y += y0;
-        if(y > height || x > width) // - life
+        if(y > height || x > width || y < 0) // - life
         {
           y = 20;
           x = potValue;
+          x0 = 0;
           y0 = -1;
           rocketw--;
           if(rocketw < 2)
@@ -138,78 +153,56 @@ void ADC_init()
   ADCSRA |= (1 << ADEN);  // Включаем АЦП
   ADCSRA |= (1 << ADSC);  // Запускаем преобразование
 }
-
-void drawball()
+void collision(uint8_t i)
 {
-  for(uint8_t i = 0; i < 12; i++)
-  {
-    xyvector[i] = display.getPixel(x + xarr[i],y + yarr[i]);
+  float zx = x0 - xballvec[i];
+  float zy = y0 - yballvec[i];
+  float zmod = sqrt(zx*zx + zy*zy);
+  if(zmod != 0){
+    float k = 1/zmod;
+    zx *= k;
+    zy *= k;
   }
-  if(xyvector[1] == BLACK && xyvector[2] == BLACK)  //top left corner
-  {
-    x0 = -x0;
-    y0 = -y0;
-    display.fillCircle(x - 1,y - 1,boomR,WHITE);
-  }
-  else if(xyvector[7] == BLACK && xyvector[8] == BLACK) //bottom right corner
-  {
-    x0 = -x0;
-    y0 = -y0;
-    display.fillCircle(x + 1,y + 1,boomR,WHITE);
-  }
-  else if(xyvector[4] == BLACK && xyvector[5] == BLACK) //bottom left corner
-  {
-    x0 = -x0;
-    y0 = -y0;
-    display.fillCircle(x - 1,y + 1,boomR,WHITE);
-  }
-  else if(xyvector[10] == BLACK && xyvector[11] == BLACK) //top right corner
-  {
-    x0 = -x0;
-    y0 = -y0;
-    display.fillCircle(x + 1,y - 1,boomR,WHITE);
-  }
-  else if(xyvector[11] == BLACK || xyvector[0] == BLACK || xyvector[1] == BLACK) //top
-  {
-    y0 = -y0;
-    if(y > 3) //top
-      display.fillCircle(x + xarr[0],y + yarr[0],boomR,WHITE);
-  }
-  else if(xyvector[5] == BLACK || xyvector[6] == BLACK || xyvector[7] == BLACK) // bottom
-  {
-    y0 = -y0;
-    if(y == height - 3) //bottom\rocket
-    {
-      int8_t xrocket = x - (potValue - 2);
-      xrocket = map(xrocket,0,rocketw,0,6);
-      x0 = xvec[xrocket];
-      y0 = yvec[xrocket];
-    }
-    else 
-      display.fillCircle(x + xarr[6],y + yarr[6],boomR,WHITE);
-  }
-  else if(xyvector[2] == BLACK || xyvector[3] == BLACK || xyvector[4] == BLACK ||
-   xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) // left or right
-  {
-    x0 = -x0;
-    if((xyvector[8] == BLACK || xyvector[9] == BLACK || xyvector[10] == BLACK) && x != width-3)
-      display.fillCircle(x + xarr[9],y + yarr[9],boomR,WHITE);
-    else if(x > 3)
-      display.fillCircle(x + xarr[3],y + yarr[3],boomR,WHITE);
-  }
-  display.drawCircle(x, y, 2, BLACK);
+  x0 = zx;
+  y0 = zy;
 }
-
+void physics()
+{
+  //  осматриваем нижние точки
+  uint8_t counter = 0;
+  for(uint8_t i = 5; i < 8; i++)
+  {
+    counter += display.getPixel(x + xarr[i],y + yarr[i]);
+  }
+  //  если столкнулись с ракеткой
+  if((counter > 0) && (round(y) >= (height - 3))) 
+  {
+    int8_t xrocket = x - potValue;
+    xrocket = map(xrocket,0,rocketw,6,0);
+    x0 = xrvec[xrocket];
+    y0 = yrvec[xrocket];
+  } else {
+    for(uint8_t i = 0; i < 12; i++){
+      if(display.getPixel(x + xarr[i],y + yarr[i]) == BLACK){
+        collision(i);
+        display.fillCircle(x + xarr[i],y + yarr[i],boomR,WHITE);
+      }
+    }
+  }
+  y0 += gravity;
+}
+  
 void drawrocket()
 {
   //potValue = ADCH;  // ADLAR=1, Получаем 8-битный результат, остальными битами пренебрегаем
-  potValue = map(ADCH,0,255,width - rocketw,0); 
+  //potValue = map(ADCH,0,255,width - rocketw,0); 
+  potValue = map(x,0,width+2,0,width - rocketw);// AI
   display.drawRect(potValue,height - 1,rocketw,rocketh,BLACK);
 }
 
 void clearent()
 {
-  display.fillCircle(x, y, 2, WHITE); //ball
+  display.fillCircle(round(x), round(y), 2, WHITE); //ball
   display.drawRect(potValue,height-1,rocketw,rocketh,WHITE);
 }
 
