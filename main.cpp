@@ -32,19 +32,19 @@ uint8_t width = 83; //ширина дисплея
 uint8_t height = 47; //высота дисплея
 String title = "GAMEOVER";
 //-----decition-------------
-int8_t xarr[12]  = { 0,-1,-2,-2,-2,-1,0,1,2,2, 2,1}; //x coordinate
-int8_t yarr[12]={-2,-2,-1, 0, 1, 2,2,2,1,0,-1,-2}; //y coordinate
+const int xarr[12] PROGMEM = { 0,-1,-2,-2,-2,-1,0,1,2,2, 2, 1}; //x coordinate
+const int yarr[12] PROGMEM = {-2,-2,-1, 0, 1, 2,2,2,1,0,-1,-2}; //y coordinate
 //uint8_t xyvector[12]; //vector bool/direction
-float xballvec[12] = {0,-0.3826834323650897717284599840304,-0.92387953251128675612818318939679,-1,
+const float xballvec[12] PROGMEM = {0,-0.3826834323650897717284599840304,-0.92387953251128675612818318939679,-1,
 -0.92387953251128675612818318939679,-0.3826834323650897717284599840304,0,0.3826834323650897717284599840304,
 0.92387953251128675612818318939679,1,0.92387953251128675612818318939679,0.3826834323650897717284599840304};
-float yballvec[12] = {-1,-0.92387953251128675612818318939679,-0.3826834323650897717284599840304,0,
+const float yballvec[12] PROGMEM = {-1,-0.92387953251128675612818318939679,-0.3826834323650897717284599840304,0,
 0.3826834323650897717284599840304,0.92387953251128675612818318939679,1,0.92387953251128675612818318939679,
 0.3826834323650897717284599840304,0,-0.3826834323650897717284599840304,-0.92387953251128675612818318939679};
-float xrvec[12] = {-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,
+const float xrvec[12] PROGMEM = {-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,
 -0.3826834323650897717284599840304,  0.0, 0.3826834323650897717284599840304,  0.70710678118654752440084436210485,
  0.92387953251128675612818318939679};
-float yrvec[12] = {-0.3826834323650897717284599840304, -0.70710678118654752440084436210485,
+const float yrvec[12] PROGMEM = {-0.3826834323650897717284599840304, -0.70710678118654752440084436210485,
 -0.92387953251128675612818318939679,  -1,-0.92387953251128675612818318939679,-0.70710678118654752440084436210485,
 -0.3826834323650897717284599840304};
 //---------------------------------------------------
@@ -155,8 +155,8 @@ void ADC_init()
 }
 void collision(uint8_t i)
 {
-  float zx = x0 - xballvec[i];
-  float zy = y0 - yballvec[i];
+  float zx = x0 - pgm_read_float(&xballvec[i]);
+  float zy = y0 - pgm_read_float(&yballvec[i]);
   float zmod = sqrt(zx*zx + zy*zy);
   if(zmod != 0){
     float k = 1/zmod;
@@ -172,20 +172,20 @@ void physics()
   uint8_t counter = 0;
   for(uint8_t i = 5; i < 8; i++)
   {
-    counter += display.getPixel(x + xarr[i],y + yarr[i]);
+    counter += display.getPixel(x + pgm_read_word(&(xarr[i])) ,y + pgm_read_word(&(yarr[i])));
   }
   //  если столкнулись с ракеткой
   if((counter > 0) && (round(y) >= (height - 3))) 
   {
     int8_t xrocket = x - potValue;
     xrocket = map(xrocket,0,rocketw,6,0);
-    x0 = xrvec[xrocket];
-    y0 = yrvec[xrocket];
+    x0 = pgm_read_float(&(xrvec[xrocket]));
+    y0 = pgm_read_float(&(yrvec[xrocket]));
   } else {
     for(uint8_t i = 0; i < 12; i++){
-      if(display.getPixel(x + xarr[i],y + yarr[i]) == BLACK){
+      if(display.getPixel(x + pgm_read_word(&(xarr[i])),y + pgm_read_word(&(yarr[i]))) == BLACK){
         collision(i);
-        display.fillCircle(x + xarr[i],y + yarr[i],boomR,WHITE);
+        display.fillCircle(x + pgm_read_word(&(xarr[i])),y + pgm_read_word(&(yarr[i])),boomR,WHITE);
       }
     }
   }
